@@ -14,7 +14,7 @@
     <header class="flex flex-col gap-2 items-center py-8">
       <h1 class="font-bold text-3xl text-blue-400">highliSense</h1>
       <h2 class="font-semibold text-md text-blue-200">
-        highly sensible - helps YOU understands the context
+        highly sensible to understands your highlighted context
       </h2>
     </header>
 

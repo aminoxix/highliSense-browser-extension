@@ -1,6 +1,6 @@
 {
   "name": "highliSense",
-  "description": "highly sensible - helps YOU understands the context",
+  "description": "highly sensible to understands your highlighted context",
   "version": "1.0.0",
   "manifest_version": 3,
   "content_scripts": [

@@ -1,22 +1,20 @@
-<!-- Main.svelte -->
-
 <script lang="ts">
+  import { createMutation } from "@tanstack/svelte-query";
   import z from "zod";
 
+  import { marked } from "marked";
+  import { generateResult } from "./lib/routes";
   import type { IGenerator, Response } from "./types/main";
 
-  import { createMutation } from "@tanstack/svelte-query";
-  import { generateResult } from "./lib/routes";
+  let error = "";
+  let isExtension = true;
 
-  let error = $state("");
-  let isExtension = $state(true);
-
-  let data: IGenerator = $state({
+  let data: IGenerator = {
     link: "",
     context: "",
     highlighter: "",
     type: "extension",
-  });
+  };
 
   const formSchema = z.object({
     link: z.string().url(),
@@ -26,9 +24,9 @@
     mutationKey: ["generator"],
     mutationFn: () =>
       generateResult({
-        type: data.type,
-        link: data.link,
-        context: data.link ? undefined : data.context,
+        type: isExtension ? "extension" : "link",
+        link: isExtension ? undefined : data.link,
+        context: isExtension ? data.context : undefined,
         highlighter: data.highlighter,
       }),
     onSuccess: (data) => alert("success! " + JSON.stringify(data)),
@@ -40,80 +38,89 @@
   });
 
   function requestDomExtraction() {
+    if (!isExtension) return;
+
     chrome.runtime.sendMessage(
       { type: "TRIGGER_EXTRACTION" },
       (response: { payload: IGenerator }) => {
         error = "";
         if (chrome.runtime.lastError) {
           console.error("Runtime error:", chrome.runtime.lastError.message);
-          error = `fatt hi gaya! ${chrome.runtime.lastError.message}`;
+          error = `Extraction error: ${chrome.runtime.lastError.message}`;
           return;
         }
 
-        if (response && response.payload) {
+        if (response?.payload) {
           data = response.payload;
           $mutation.mutate();
         } else {
           error =
-            "fatt gaya! no content received, please refresh your browser & try again.";
+            "No content received. Please refresh the browser and try again.";
         }
       }
     );
   }
 
-  const handleFormSubmit = () => {
-    const result = formSchema.safeParse({ link: data.link });
+  function handleFormSubmit(e: Event) {
+    e.preventDefault();
+    error = "";
 
-    if (!result.success) {
-      error = result.error.toString();
-      return;
+    if (isExtension) {
+      requestDomExtraction();
     } else {
-      data.type = "link";
+      const result = formSchema.safeParse({ link: data.link });
+      if (!result.success) {
+        error = result.error.toString();
+        return;
+      }
+
       $mutation.mutate();
     }
-  };
+  }
 </script>
 
 <div class="flex flex-col items-center justify-center gap-8">
   <div class="flex flex-col gap-2">
-    <button
-      onclick={requestDomExtraction}
-      class="px-3 py-2 cursor-pointer bg-blue-500 hover:bg-blue-600 shadow-sm border border-gray-600 rounded-md font-semibold text-white"
-    >
-      Get DOM Content
-    </button>
-
-    <p class={error && `text-red-500`}>
-      {error ? error : $mutation.data ? $mutation.data.text : ""}
-    </p>
-
-    <div>
-      <form onsubmit={handleFormSubmit}>
+    <form on:submit={handleFormSubmit} class="flex flex-col gap-2">
+      {#if !isExtension}
         <input
           type="url"
           bind:value={data.link}
           placeholder="Enter a URL..."
           class="border border-blue-300 px-3 py-2 rounded-lg"
         />
-        <button
-          onclick={requestDomExtraction}
-          class="px-3 py-2 cursor-pointer bg-blue-500 hover:bg-blue-600 shadow-sm border border-gray-600 rounded-md font-semibold text-white"
-        >
-          Related to Reference?
-        </button>
-      </form>
-    </div>
+      {/if}
+      <button
+        type="submit"
+        class="px-3 py-2 cursor-pointer bg-blue-500 hover:bg-blue-600 shadow-sm border border-gray-600 rounded-md font-semibold text-white"
+      >
+        {isExtension ? "Get DOM Content" : "Submit URL"}
+      </button>
+    </form>
 
     <div class="flex items-center gap-4">
-      Switch over current screen?
-      <div class="relative inline-flex items-center mr-5">
+      Use current screen (extension)?
+      <div class="relative inline-flex items-center">
         <input
           id="toggle"
           type="checkbox"
-          class="h-5 w-5"
+          class="h-5 w-5 toggle"
           bind:checked={isExtension}
+          on:change={() => console.log("toggle", isExtension)}
         />
       </div>
+    </div>
+
+    <div>
+      {#if error}
+        <p class="text-red-500">{error}</p>
+      {:else if $mutation.data}
+        <div class="prose max-w-none">
+          <p class="text-blue-100">
+            {@html marked.parse($mutation.data.text)}
+          </p>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
