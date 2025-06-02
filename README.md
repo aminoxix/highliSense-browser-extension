@@ -6,4 +6,5 @@
 
 > first preview of highliSense
 
-> [!IMPORTANT] > **wip:** authentication, storage based on users, redis implementation & reusable context with chat support
+> [!IMPORTANT]
+> **wip:** authentication, storage based on users, redis implementation & reusable context with chat support
