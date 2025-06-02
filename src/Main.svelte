@@ -1,13 +1,19 @@
 <script lang="ts">
-  import { createMutation } from "@tanstack/svelte-query";
+  import {
+    createMutation,
+    createQuery,
+    useQueryClient,
+  } from "@tanstack/svelte-query";
   import z from "zod";
 
   import { marked } from "marked";
-  import { generateResult } from "./lib/routes";
+  import { fetchStatus, generateResult } from "./lib/routes";
   import type { IGenerator, Response } from "./types/main";
 
   let error = "";
-  let isExtension = true;
+  const isChrome = typeof chrome !== "undefined" && chrome.runtime?.id;
+
+  let isExtension = !!isChrome;
 
   let data: IGenerator = {
     link: "",
@@ -15,6 +21,14 @@
     highlighter: "",
     type: "extension",
   };
+
+  const queryClient = useQueryClient();
+
+  const statusQuery = createQuery<string>({
+    queryKey: ["status"],
+    queryFn: fetchStatus,
+    retry: 2,
+  });
 
   const formSchema = z.object({
     link: z.string().url(),
@@ -27,13 +41,13 @@
         type: isExtension ? "extension" : "link",
         link: isExtension ? undefined : data.link,
         context: isExtension ? data.context : undefined,
-        highlighter: data.highlighter,
+        highlighter:
+          data.highlighter || "please provide me summary of link shared",
       }),
-    onSuccess: (data) => alert("success! " + JSON.stringify(data)),
     onError: (err) => {
-      alert("failed! " + JSON.stringify(err));
-      error =
-        err instanceof Error ? err.message : JSON.stringify(err).toString();
+      queryClient.invalidateQueries({ queryKey: ["status"] }),
+        (error =
+          err instanceof Error ? err.message : JSON.stringify(err).toString());
     },
   });
 
@@ -80,36 +94,51 @@
 </script>
 
 <div class="flex flex-col items-center justify-center gap-8">
-  <div class="flex flex-col gap-2">
+  <div
+    class="flex items-center border border-blue-400 shadow-sm px-3 py-0.5 gap-2 w-max rounded-full"
+  >
+    {#if $statusQuery.isLoading}
+      <div class="size-3 rounded-full bg-yellow-400"></div>
+    {:else}
+      <div
+        class={`size-3 rounded-full ${$statusQuery.isError ? "bg-red-500" : "bg-green-400"}`}
+      ></div>
+    {/if}
+    <span>status</span>
+  </div>
+  <div class="flex flex-col gap-2 items-center">
     <form on:submit={handleFormSubmit} class="flex flex-col gap-2">
       {#if !isExtension}
         <input
           type="url"
           bind:value={data.link}
           placeholder="Enter a URL..."
-          class="border border-blue-300 px-3 py-2 rounded-lg"
+          class="border border-blue-300 px-3 py-2 rounded-lg w-2xs"
         />
       {/if}
       <button
         type="submit"
-        class="px-3 py-2 cursor-pointer bg-blue-500 hover:bg-blue-600 shadow-sm border border-gray-600 rounded-md font-semibold text-white"
+        disabled={$mutation.isPending}
+        class={`px-3 py-2 shadow-sm border border-gray-600 w-2xs rounded-md font-semibold ${$mutation.isPending ? "bg-gray-500 cursor-not-allowed text-gray-200" : "text-white bg-blue-500 hover:bg-blue-600 cursor-pointer"}`}
       >
         {isExtension ? "Get DOM Content" : "Submit URL"}
       </button>
     </form>
 
-    <div class="flex items-center gap-4">
-      Use current screen (extension)?
-      <div class="relative inline-flex items-center">
-        <input
-          id="toggle"
-          type="checkbox"
-          class="h-5 w-5 toggle"
-          bind:checked={isExtension}
-          on:change={() => console.log("toggle", isExtension)}
-        />
+    {#if !!isChrome}
+      <div class="flex items-center gap-4">
+        Use current screen (extension)?
+        <div class="relative inline-flex items-center">
+          <input
+            id="toggle"
+            type="checkbox"
+            class="h-5 w-5 toggle"
+            bind:checked={isExtension}
+            on:change={() => console.log("toggle", isExtension)}
+          />
+        </div>
       </div>
-    </div>
+    {/if}
 
     <div>
       {#if error}
